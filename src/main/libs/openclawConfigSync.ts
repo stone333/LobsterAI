@@ -75,7 +75,9 @@ export class OpenClawConfigSync {
     const providerApi = mapApiTypeToOpenClawApi(apiType);
     const sandboxMode = mapExecutionModeToSandboxMode(coworkConfig.executionMode || 'auto');
 
-    const managedConfig = {
+    const workspaceDir = (coworkConfig.workingDirectory || '').trim();
+
+    const managedConfig: Record<string, unknown> = {
       gateway: {
         mode: 'local',
       },
@@ -106,6 +108,7 @@ export class OpenClawConfigSync {
           sandbox: {
             mode: sandboxMode,
           },
+          ...(workspaceDir ? { workspace: workspaceDir } : {}),
         },
       },
     };

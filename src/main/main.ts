@@ -1971,7 +1971,8 @@ if (!gotTheLock) {
         && previousConfig.agentEngine !== 'openclaw';
 
       const shouldSyncOpenClawConfig = normalizedExecutionMode !== undefined
-        || normalizedAgentEngine !== undefined;
+        || normalizedAgentEngine !== undefined
+        || (normalizedConfig.workingDirectory !== undefined && normalizedConfig.workingDirectory !== previousWorkingDir);
       if (shouldSyncOpenClawConfig) {
         const syncResult = await syncOpenClawConfig({
           reason: 'cowork-config-change',
