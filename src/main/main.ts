@@ -38,8 +38,6 @@ import type { NotifyPlatform } from '../renderer/types/scheduledTask';
 import { McpServerManager } from './libs/mcpServerManager';
 import { McpBridgeServer } from './libs/mcpBridgeServer';
 import type { McpBridgeConfig } from './libs/openclawConfigSync';
-import { ScheduledTaskStore } from './scheduledTaskStore';
-import { Scheduler } from './libs/scheduler';
 import { downloadUpdate, installUpdate, cancelActiveDownload } from './libs/appUpdateInstaller';
 import { initLogger, getLogFilePath } from './logger';
 import { getCoworkLogPath } from './libs/coworkLogger';
