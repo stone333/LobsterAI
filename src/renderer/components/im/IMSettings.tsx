@@ -2568,7 +2568,6 @@ const IMSettings: React.FC = () => {
                   const updated = deepSet({ ...config.nim } as unknown as Record<string, unknown>, path, value);
                   dispatch(setNimConfig(updated as any));
                 }}
-                }}
                 onBlur={handleSaveConfig}
                 showSecrets={showSecrets}
                 onToggleSecret={(path) => setShowSecrets(prev => ({ ...prev, [path]: !prev[path] }))}
