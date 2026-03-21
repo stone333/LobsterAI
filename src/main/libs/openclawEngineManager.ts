@@ -8,6 +8,7 @@ import path from 'path';
 import { getElectronNodeRuntimePath } from './coworkUtil';
 import { syncLocalOpenClawExtensionsIntoRuntime } from './openclawLocalExtensions';
 import { applyBundledOpenClawRuntimeHotfixes } from './openclawRuntimeHotfix';
+import { appendPythonRuntimeToEnv } from './pythonRuntime';
 import { isSystemProxyEnabled, resolveSystemProxyUrl } from './systemProxy';
 
 type GatewayProcess = UtilityProcess | ChildProcess;
@@ -419,6 +420,10 @@ export class OpenClawEngineManager extends EventEmitter {
       const currentPath = env.PATH || env.Path || '';
       env.PATH = [cliShimDir, currentPath].filter(Boolean).join(path.delimiter);
     }
+
+    // Prepend bundled/user Python runtime paths so gateway exec commands
+    // find the LobsterAI-managed Python instead of the Windows Store stub.
+    appendPythonRuntimeToEnv(env as Record<string, string | undefined>);
 
     if (isSystemProxyEnabled()) {
       const proxyUrl = await resolveSystemProxyUrl('https://openrouter.ai');
