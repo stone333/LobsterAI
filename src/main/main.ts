@@ -2230,6 +2230,19 @@ if (!gotTheLock) {
     }
   });
 
+  ipcMain.handle('cowork:session:remoteManaged', async (_event, sessionId: string) => {
+    try {
+      const mapping = getIMGatewayManager()?.getIMStore()?.getSessionMappingByCoworkSessionId(sessionId);
+      return { success: true, remoteManaged: !!mapping };
+    } catch (error) {
+      return {
+        success: false,
+        remoteManaged: false,
+        error: error instanceof Error ? error.message : 'Failed to check remote managed session',
+      };
+    }
+  });
+
   ipcMain.handle('cowork:session:list', async () => {
     try {
       const sessions = getCoworkStore().listSessions();
