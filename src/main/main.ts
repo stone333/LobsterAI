@@ -792,6 +792,13 @@ const getOpenClawConfigSync = (): OpenClawConfigSync => {
           return null;
         }
       },
+      getWeixinConfig: () => {
+        try {
+          return getIMGatewayManager().getConfig().weixin;
+        } catch {
+          return null;
+        }
+      },
       getDiscordOpenClawConfig: () => {
         try {
           return getIMGatewayManager()?.getConfig()?.discord ?? null;
@@ -2949,6 +2956,25 @@ if (!gotTheLock) {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to test gateway connectivity',
       };
+    }
+  });
+
+  // Weixin QR login
+  ipcMain.handle('im:weixin:qr-login-start', async () => {
+    try {
+      const result = await getIMGatewayManager().weixinQrLoginStart();
+      return { success: true, ...result };
+    } catch (error) {
+      return { success: false, message: error instanceof Error ? error.message : 'Failed to start Weixin QR login' };
+    }
+  });
+
+  ipcMain.handle('im:weixin:qr-login-wait', async (_event, accountId?: string) => {
+    try {
+      const result = await getIMGatewayManager().weixinQrLoginWait(accountId);
+      return { success: true, ...result };
+    } catch (error) {
+      return { success: false, connected: false, message: error instanceof Error ? error.message : 'Weixin QR login failed' };
     }
   });
 

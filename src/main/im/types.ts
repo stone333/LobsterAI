@@ -277,9 +277,28 @@ export interface PopoGatewayStatus {
   lastOutboundAt: number | null;
 }
 
+// ==================== Weixin (微信) Types ====================
+
+export interface WeixinOpenClawConfig {
+  enabled: boolean;
+  dmPolicy: 'open' | 'pairing' | 'allowlist' | 'disabled';
+  allowFrom: string[];
+  groupPolicy: 'open' | 'allowlist' | 'disabled';
+  groupAllowFrom: string[];
+  debug: boolean;
+}
+
+export interface WeixinGatewayStatus {
+  connected: boolean;
+  startedAt: number | null;
+  lastError: string | null;
+  lastInboundAt: number | null;
+  lastOutboundAt: number | null;
+}
+
 // ==================== Common IM Types ====================
 
-export type IMPlatform = 'dingtalk' | 'feishu' | 'qq' | 'telegram' | 'discord' | 'nim' | 'xiaomifeng' | 'wecom' | 'popo';
+export type IMPlatform = 'dingtalk' | 'feishu' | 'qq' | 'telegram' | 'discord' | 'nim' | 'xiaomifeng' | 'wecom' | 'popo' | 'weixin';
 
 export interface IMGatewayConfig {
   dingtalk: DingTalkOpenClawConfig;
@@ -291,6 +310,7 @@ export interface IMGatewayConfig {
   xiaomifeng: XiaomifengConfig;
   wecom: WecomOpenClawConfig;
   popo: PopoOpenClawConfig;
+  weixin: WeixinOpenClawConfig;
   settings: IMSettings;
 }
 
@@ -309,6 +329,7 @@ export interface IMGatewayStatus {
   xiaomifeng: XiaomifengGatewayStatus;
   wecom: WecomGatewayStatus;
   popo: PopoGatewayStatus;
+  weixin: WeixinGatewayStatus;
 }
 
 // ==================== Media Attachment Types ====================
@@ -549,6 +570,15 @@ export const DEFAULT_POPO_CONFIG: PopoOpenClawConfig = {
   debug: true,
 };
 
+export const DEFAULT_WEIXIN_CONFIG: WeixinOpenClawConfig = {
+  enabled: false,
+  dmPolicy: 'open',
+  allowFrom: [],
+  groupPolicy: 'open',
+  groupAllowFrom: [],
+  debug: true,
+};
+
 export const DEFAULT_IM_SETTINGS: IMSettings = {
   systemPrompt: '',
   skillsEnabled: true,
@@ -564,6 +594,7 @@ export const DEFAULT_IM_CONFIG: IMGatewayConfig = {
   xiaomifeng: DEFAULT_XIAOMIFENG_CONFIG,
   wecom: DEFAULT_WECOM_CONFIG,
   popo: DEFAULT_POPO_CONFIG,
+  weixin: DEFAULT_WEIXIN_CONFIG,
   settings: DEFAULT_IM_SETTINGS,
 };
 
@@ -637,6 +668,14 @@ export const DEFAULT_POPO_STATUS: PopoGatewayStatus = {
   lastOutboundAt: null,
 };
 
+export const DEFAULT_WEIXIN_STATUS: WeixinGatewayStatus = {
+  connected: false,
+  startedAt: null,
+  lastError: null,
+  lastInboundAt: null,
+  lastOutboundAt: null,
+};
+
 export const DEFAULT_IM_STATUS: IMGatewayStatus = {
   dingtalk: DEFAULT_DINGTALK_STATUS,
   feishu: DEFAULT_FEISHU_STATUS,
@@ -654,6 +693,7 @@ export const DEFAULT_IM_STATUS: IMGatewayStatus = {
   xiaomifeng: DEFAULT_XIAOMIFENG_STATUS,
   wecom: DEFAULT_WECOM_STATUS,
   popo: DEFAULT_POPO_STATUS,
+  weixin: DEFAULT_WEIXIN_STATUS,
 };
 
 // ==================== Media Marker Types ====================
