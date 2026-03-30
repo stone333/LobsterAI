@@ -1,0 +1,7 @@
+id: refactor-cowork-session-detail
+title: 'Refactor CoworkSessionDetail: Split 2100+ Line File into Focused Modules'
+type: refactor
+status: apply-ready
+branch: refactor/cowork-session-detail-split
+created_at: '2026-03-30'
+updated_at: '2026-03-30'
