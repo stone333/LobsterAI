@@ -5,6 +5,7 @@ import { PhotoIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline'
 import PaperClipIcon from '../icons/PaperClipIcon';
 import XMarkIcon from '../icons/XMarkIcon';
 import ModelSelector from '../ModelSelector';
+import Tooltip from '../ui/Tooltip';
 import FolderSelectorPopover from './FolderSelectorPopover';
 import { SkillsButton, ActiveSkillBadge } from '../skills';
 import { i18nService } from '../../services/i18n';
@@ -20,7 +21,6 @@ import { getCompactFolderName } from '../../utils/path';
 // so that attachment state survives view switches (cowork ↔ skills, etc.)
 type CoworkAttachment = DraftAttachment;
 
-const INPUT_FILE_LABEL = '输入文件';
 
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg']);
 
@@ -254,7 +254,7 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
     // Note: inline/clipboard images have pseudo-paths starting with 'inline:' and are excluded.
     const attachmentLines = attachments
       .filter((a) => !a.path.startsWith('inline:'))
-      .map((attachment) => `${INPUT_FILE_LABEL}: ${attachment.path}`)
+      .map((attachment) => `${i18nService.t('inputFileLabel')}: ${attachment.path}`)
       .join('\n');
     const finalPrompt = trimmedValue
       ? (attachmentLines ? `${trimmedValue}\n\n${attachmentLines}` : trimmedValue)
@@ -620,9 +620,7 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
         <div className="mb-2 flex items-start gap-1.5 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 px-2.5 py-1.5 text-xs text-amber-700 dark:text-amber-400">
           <ExclamationTriangleIcon className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
           <span>
-            {i18nService.getLanguage() === 'zh'
-              ? '当前模型未启用图片输入，图片将以文件路径形式发送。若该模型本身支持图片理解，可在模型配置中开启图片输入选项。'
-              : 'Image input is not enabled for the current model. Images will be sent as file paths. If the model supports vision, you can enable image input in the model configuration.'}
+            {i18nService.t('imageVisionHint')}
           </span>
           <button
             type="button"
@@ -663,25 +661,38 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
               <div className="flex items-center gap-2 relative">
                 {showFolderSelector && (
                   <>
-                    <div className="relative group">
-                      <button
-                        ref={folderButtonRef as React.RefObject<HTMLButtonElement>}
-                        type="button"
-                        onClick={() => setShowFolderMenu(!showFolderMenu)}
-                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm text-secondary hover:bg-surface-raised hover:text-foreground transition-colors"
-                      >
-                        <FolderIcon className="h-4 w-4" />
-                        <span className="max-w-[150px] truncate text-xs">
-                          {truncatePath(workingDirectory)}
-                        </span>
-                      </button>
-                      {/* Tooltip - hidden when folder menu is open */}
-                      {!showFolderMenu && (
-                        <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-3.5 py-2.5 text-[13px] leading-relaxed rounded-xl shadow-xl bg-background text-foreground border-border border opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none z-50 max-w-[400px] break-all whitespace-nowrap">
-                          {truncatePath(workingDirectory, 120)}
-                        </div>
-                      )}
-                    </div>
+                    <Tooltip
+                      content={truncatePath(workingDirectory, 120)}
+                      disabled={showFolderMenu || !workingDirectory}
+                      maxWidth="min(400px, 90vw)"
+                    >
+                      <div className="flex items-center">
+                        <button
+                          ref={folderButtonRef as React.RefObject<HTMLButtonElement>}
+                          type="button"
+                          onClick={() => setShowFolderMenu(!showFolderMenu)}
+                          className="flex items-center gap-1.5 pl-2.5 pr-1.5 py-1.5 rounded-lg text-sm text-secondary hover:bg-surface-raised hover:text-foreground transition-colors"
+                        >
+                          <FolderIcon className="h-4 w-4 flex-shrink-0" />
+                          <span className="max-w-[150px] truncate text-xs">
+                            {truncatePath(workingDirectory)}
+                          </span>
+                          {workingDirectory && (
+                            <span
+                              role="button"
+                              tabIndex={-1}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleFolderSelect('');
+                              }}
+                              className="flex-shrink-0 ml-0.5 p-0.5 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+                            >
+                              <XMarkIcon className="h-3 w-3" />
+                            </span>
+                          )}
+                        </button>
+                      </div>
+                    </Tooltip>
                     <FolderSelectorPopover
                       isOpen={showFolderMenu}
                       onClose={() => setShowFolderMenu(false)}

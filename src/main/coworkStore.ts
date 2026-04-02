@@ -624,7 +624,8 @@ export class CoworkStore {
     if (row.active_skill_ids) {
       try {
         activeSkillIds = JSON.parse(row.active_skill_ids);
-      } catch {
+      } catch (e) {
+        console.error('[CoworkStore] Failed to parse active_skill_ids for session', id, e);
         activeSkillIds = [];
       }
     }
@@ -805,13 +806,26 @@ export class CoworkStore {
         ROWID ASC
     `, [sessionId]);
 
-    return rows.map(row => ({
-      id: row.id,
-      type: row.type as CoworkMessageType,
-      content: row.content,
-      timestamp: row.created_at,
-      metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
-    }));
+    return rows.map((row) => {
+      let metadata: Record<string, unknown> | undefined;
+      if (row.metadata) {
+        try {
+          metadata = JSON.parse(row.metadata);
+        } catch {
+          console.warn(
+            `[CoworkStore] corrupt metadata detected for message ${row.id} in session ${sessionId}, discarding metadata`,
+          );
+          metadata = undefined;
+        }
+      }
+      return {
+        id: row.id,
+        type: row.type as CoworkMessageType,
+        content: row.content,
+        timestamp: row.created_at,
+        metadata,
+      };
+    });
   }
 
   addMessage(sessionId: string, message: Omit<CoworkMessage, 'id' | 'timestamp'>): CoworkMessage {
@@ -993,37 +1007,33 @@ export class CoworkStore {
 
   // Config operations
   getConfig(): CoworkConfig {
-    interface ConfigRow {
-      value: string;
-    }
-
-    const workingDirRow = this.getOne<ConfigRow>('SELECT value FROM cowork_config WHERE key = ?', ['workingDirectory']);
-    const executionModeRow = this.getOne<ConfigRow>('SELECT value FROM cowork_config WHERE key = ?', ['executionMode']);
-    const agentEngineRow = this.getOne<ConfigRow>('SELECT value FROM cowork_config WHERE key = ?', ['agentEngine']);
-    const memoryEnabledRow = this.getOne<ConfigRow>('SELECT value FROM cowork_config WHERE key = ?', ['memoryEnabled']);
-    const memoryImplicitUpdateEnabledRow = this.getOne<ConfigRow>('SELECT value FROM cowork_config WHERE key = ?', ['memoryImplicitUpdateEnabled']);
-    const memoryLlmJudgeEnabledRow = this.getOne<ConfigRow>('SELECT value FROM cowork_config WHERE key = ?', ['memoryLlmJudgeEnabled']);
-    const memoryGuardLevelRow = this.getOne<ConfigRow>('SELECT value FROM cowork_config WHERE key = ?', ['memoryGuardLevel']);
-    const memoryUserMemoriesMaxItemsRow = this.getOne<ConfigRow>('SELECT value FROM cowork_config WHERE key = ?', ['memoryUserMemoriesMaxItems']);
-
-    const normalizedAgentEngine = normalizeCoworkAgentEngineValue(agentEngineRow?.value);
+    const configKeys = [
+      'workingDirectory', 'executionMode', 'agentEngine', 'memoryEnabled',
+      'memoryImplicitUpdateEnabled', 'memoryLlmJudgeEnabled',
+      'memoryGuardLevel', 'memoryUserMemoriesMaxItems',
+    ] as const;
+    const configRows = this.getAll<{ key: string; value: string }>(
+      `SELECT key, value FROM cowork_config WHERE key IN (${configKeys.map(() => '?').join(', ')})`,
+      [...configKeys]
+    );
+    const cfg = new Map(configRows.map(r => [r.key, r.value]));
 
     return {
-      workingDirectory: workingDirRow?.value || getDefaultWorkingDirectory(),
+      workingDirectory: cfg.get('workingDirectory') || getDefaultWorkingDirectory(),
       systemPrompt: getDefaultSystemPrompt(),
-      executionMode: (executionModeRow?.value as CoworkExecutionMode) || 'local',
-      agentEngine: normalizedAgentEngine,
-      memoryEnabled: parseBooleanConfig(memoryEnabledRow?.value, DEFAULT_MEMORY_ENABLED),
+      executionMode: 'local' as CoworkExecutionMode,
+      agentEngine: normalizeCoworkAgentEngineValue(cfg.get('agentEngine')),
+      memoryEnabled: parseBooleanConfig(cfg.get('memoryEnabled'), DEFAULT_MEMORY_ENABLED),
       memoryImplicitUpdateEnabled: parseBooleanConfig(
-        memoryImplicitUpdateEnabledRow?.value,
+        cfg.get('memoryImplicitUpdateEnabled'),
         DEFAULT_MEMORY_IMPLICIT_UPDATE_ENABLED
       ),
       memoryLlmJudgeEnabled: parseBooleanConfig(
-        memoryLlmJudgeEnabledRow?.value,
+        cfg.get('memoryLlmJudgeEnabled'),
         DEFAULT_MEMORY_LLM_JUDGE_ENABLED
       ),
-      memoryGuardLevel: normalizeMemoryGuardLevel(memoryGuardLevelRow?.value),
-      memoryUserMemoriesMaxItems: clampMemoryUserMemoriesMaxItems(Number(memoryUserMemoriesMaxItemsRow?.value)),
+      memoryGuardLevel: normalizeMemoryGuardLevel(cfg.get('memoryGuardLevel')),
+      memoryUserMemoriesMaxItems: clampMemoryUserMemoriesMaxItems(Number(cfg.get('memoryUserMemoriesMaxItems'))),
     };
   }
 
@@ -1353,13 +1363,17 @@ export class CoworkStore {
       SET status = 'deleted', updated_at = ?
       WHERE id = ?
     `, [now, id]);
+    // Capture the result of the memory update before running the next
+    // statement, because getRowsModified() always returns the count for
+    // the most recently executed db.run() call.
+    const memoryUpdated = (this.db.getRowsModified?.() || 0) > 0;
     this.db.run(`
       UPDATE user_memory_sources
       SET is_active = 0
       WHERE memory_id = ?
     `, [id]);
     this.saveDb();
-    return (this.db.getRowsModified?.() || 0) > 0;
+    return memoryUpdated;
   }
 
   getUserMemoryStats(): CoworkUserMemoryStats {
@@ -1468,6 +1482,9 @@ export class CoworkStore {
     });
     result.totalChanges = extracted.length;
 
+    // Lazily loaded on first delete operation and reused, avoiding N×M queries.
+    let deleteCandidates: CoworkUserMemory[] | null = null;
+
     for (const change of extracted) {
       if (change.action === 'add') {
         if (!options.implicitEnabled && !change.isExplicit) {
@@ -1520,7 +1537,11 @@ export class CoworkStore {
         continue;
       }
 
-      const candidates = this.listUserMemories({ status: 'all', includeDeleted: false, limit: 100 });
+      // Load all candidates once for the first delete operation; reuse for subsequent ones.
+      if (!deleteCandidates) {
+        deleteCandidates = this.listUserMemories({ status: 'all', includeDeleted: false, limit: 100 });
+      }
+      const candidates = deleteCandidates;
       let target: CoworkUserMemory | null = null;
       let bestScore = 0;
       for (const entry of candidates) {

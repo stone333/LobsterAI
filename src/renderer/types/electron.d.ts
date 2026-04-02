@@ -125,6 +125,13 @@ interface AppUpdateDownloadProgress {
   speed: number | undefined;
 }
 
+interface QwenOAuthToken {
+  access: string;
+  refresh: string;
+  expires: number;
+  resourceUrl?: string;
+}
+
 interface WindowState {
   isMaximized: boolean;
   isFullscreen: boolean;
@@ -346,6 +353,11 @@ interface IElectronAPI {
       pngBase64: string;
       defaultFileName?: string;
     }) => Promise<{ success: boolean; canceled?: boolean; path?: string; error?: string }>;
+    exportSessionText: (options: {
+      content: string;
+      defaultFileName?: string;
+      fileExtension?: string;
+    }) => Promise<{ success: boolean; canceled?: boolean; path?: string; error?: string }>;
     respondToPermission: (options: { requestId: string; result: CoworkPermissionResult }) => Promise<{ success: boolean; error?: string }>;
     getConfig: () => Promise<{ success: boolean; config?: CoworkConfig; error?: string }>;
     setConfig: (config: CoworkConfigUpdate) => Promise<{ success: boolean; error?: string }>;
@@ -494,6 +506,21 @@ interface IElectronAPI {
   networkStatus: {
     send: (status: 'online' | 'offline') => void;
   };
+  auth: {
+    login: (loginUrl?: string) => Promise<{ success: boolean; error?: string }>;
+    exchange: (code: string) => Promise<{ success: boolean; user?: { userId: string; phone: string; nickname: string; avatarUrl: string }; quota?: { planName: string; subscriptionStatus: string; creditsLimit: number; creditsUsed: number; creditsRemaining: number }; error?: string }>;
+    getUser: () => Promise<{ success: boolean; user?: { userId: string; phone: string; nickname: string; avatarUrl: string }; quota?: { planName: string; subscriptionStatus: string; creditsLimit: number; creditsUsed: number; creditsRemaining: number } }>;
+    getQuota: () => Promise<{ success: boolean; quota?: { planName: string; subscriptionStatus: string; creditsLimit: number; creditsUsed: number; creditsRemaining: number } }>;
+    logout: () => Promise<{ success: boolean }>;
+    refreshToken: () => Promise<{ success: boolean; accessToken?: string }>;
+    getAccessToken: () => Promise<string | null>;
+    onCallback: (callback: (data: { code: string }) => void) => () => void;
+  };
+  qwen: {
+    oauthLogin: () => Promise<{ success: boolean; data?: QwenOAuthToken; error?: string }>;
+    oauthRefresh: (refreshToken: string) => Promise<{ success: boolean; data?: QwenOAuthToken; error?: string }>;
+    onOAuthProgress: (callback: (message: string) => void) => () => void;
+  },
   feishu: {
     install: {
       qrcode: (isLark: boolean) => Promise<{
@@ -514,6 +541,31 @@ interface IElectronAPI {
         error?: string;
       }>;
     };
+  };
+  githubCopilot: {
+    requestDeviceCode: () => Promise<{
+      userCode: string;
+      verificationUri: string;
+      deviceCode: string;
+      interval: number;
+      expiresIn: number;
+    }>;
+    pollForToken: (deviceCode: string, interval: number, expiresIn: number) => Promise<{
+      success: boolean;
+      token?: string;
+      githubUser?: string;
+      baseUrl?: string;
+      error?: string;
+    }>;
+    cancelPolling: () => Promise<void>;
+    signOut: () => Promise<void>;
+    refreshToken: () => Promise<{
+      success: boolean;
+      token?: string;
+      baseUrl?: string;
+      error?: string;
+    }>;
+    onTokenUpdated: (callback: (data: { token: string; baseUrl: string }) => void) => () => void;
   };
 }
 

@@ -197,6 +197,8 @@ contextBridge.exposeInMainWorld('electron', {
       ipcRenderer.invoke('cowork:session:captureImageChunk', options),
     saveResultImage: (options: { pngBase64: string; defaultFileName?: string }) =>
       ipcRenderer.invoke('cowork:session:saveResultImage', options),
+    exportSessionText: (options: { content: string; defaultFileName?: string; fileExtension?: string }) =>
+      ipcRenderer.invoke('cowork:session:exportText', options),
 
     // Permission handling
     respondToPermission: (options: { requestId: string; result: any }) =>
@@ -414,6 +416,18 @@ contextBridge.exposeInMainWorld('electron', {
   networkStatus: {
     send: (status: 'online' | 'offline') => ipcRenderer.send('network:status-change', status),
   },
+  qwen: {
+    // OAuth登录
+    oauthLogin: () => ipcRenderer.invoke('qwen:oauth:login'),
+    // OAuth刷新token
+    oauthRefresh: (refreshToken: string) => ipcRenderer.invoke('qwen:oauth:refresh', refreshToken),
+    // OAuth进度监听
+    onOAuthProgress: (callback: (message: string) => void) => {
+      const handler = (_event: any, message: string) => callback(message);
+      ipcRenderer.on('qwen:oauth:progress', handler);
+      return () => ipcRenderer.removeListener('qwen:oauth:progress', handler);
+    },
+  },
   auth: {
     login: (loginUrl?: string) => ipcRenderer.invoke('auth:login', { loginUrl }),
     exchange: (code: string) => ipcRenderer.invoke('auth:exchange', { code }),
@@ -457,6 +471,38 @@ contextBridge.exposeInMainWorld('electron', {
           success: boolean;
           error?: string;
         }>,
+    },
+  },
+  githubCopilot: {
+    requestDeviceCode: () =>
+      ipcRenderer.invoke('github-copilot:request-device-code') as Promise<{
+        userCode: string;
+        verificationUri: string;
+        deviceCode: string;
+        interval: number;
+        expiresIn: number;
+      }>,
+    pollForToken: (deviceCode: string, interval: number, expiresIn: number) =>
+      ipcRenderer.invoke('github-copilot:poll-for-token', { deviceCode, interval, expiresIn }) as Promise<{
+        success: boolean;
+        token?: string;
+        githubUser?: string;
+        baseUrl?: string;
+        error?: string;
+      }>,
+    cancelPolling: () => ipcRenderer.invoke('github-copilot:cancel-polling') as Promise<void>,
+    signOut: () => ipcRenderer.invoke('github-copilot:sign-out') as Promise<void>,
+    refreshToken: () =>
+      ipcRenderer.invoke('github-copilot:refresh-token') as Promise<{
+        success: boolean;
+        token?: string;
+        baseUrl?: string;
+        error?: string;
+      }>,
+    onTokenUpdated: (callback: (data: { token: string; baseUrl: string }) => void) => {
+      const handler = (_event: unknown, data: { token: string; baseUrl: string }) => callback(data);
+      ipcRenderer.on('github-copilot:token-updated', handler);
+      return () => ipcRenderer.removeListener('github-copilot:token-updated', handler);
     },
   },
 });

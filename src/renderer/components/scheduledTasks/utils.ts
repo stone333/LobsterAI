@@ -33,18 +33,28 @@ function tpl(template: string, vars: Record<string, string>): string {
   return template.replace(/\{(\w+)\}/g, (_, key) => vars[key] ?? '');
 }
 
+type ParsedField =
+  | { type: 'any' }
+  | { type: 'value'; value: number }
+  | { type: 'step'; step: number }
+  | { type: 'range'; from: number; to: number }
+  | { type: 'list'; values: number[] };
+
 /**
- * Parse a single cron field: '*', a number, a step ('*' followed by '/n'), or a range ('from-to').
- * Returns null if the field is complex (comma-separated lists, etc.) and we should
- * fall back to raw display.
+ * Parse a single cron field: '*', a number, a step ('*&#47;n'), a range ('from-to'),
+ * or a comma-separated list of numbers ('0,6').
+ * Returns null if the field uses unsupported syntax.
  */
-function parseField(field: string): { type: 'any' } | { type: 'value'; value: number } | { type: 'step'; step: number } | { type: 'range'; from: number; to: number } | null {
+function parseField(field: string): ParsedField | null {
   if (field === '*') return { type: 'any' };
   if (/^\d+$/.test(field)) return { type: 'value', value: Number(field) };
   const stepMatch = field.match(/^\*\/(\d+)$/);
   if (stepMatch) return { type: 'step', step: Number(stepMatch[1]) };
   const rangeMatch = field.match(/^(\d+)-(\d+)$/);
   if (rangeMatch) return { type: 'range', from: Number(rangeMatch[1]), to: Number(rangeMatch[2]) };
+  if (/^\d+(?:,\d+)+$/.test(field)) {
+    return { type: 'list', values: field.split(',').map(Number) };
+  }
   return null;
 }
 
@@ -104,8 +114,8 @@ function formatCronExpr(schedule: ScheduleCron): string {
         time,
       });
     }
-    // Weekends 0,6 or 6-0
-    if (dow.type === 'range' && ((dow.from === 6 && dow.to === 0) || (dow.from === 0 && dow.to === 6))) {
+    // Weekends: 0,6 or 6,0
+    if (dow.type === 'list' && dow.values.length === 2 && dow.values.includes(0) && dow.values.includes(6)) {
       return tpl(i18nService.t('scheduledTasksCronAtTime'), {
         schedule: i18nService.t('scheduledTasksCronWeekends'),
         time,
@@ -125,6 +135,14 @@ function formatCronExpr(schedule: ScheduleCron): string {
       const toName = i18nService.t(WEEKDAY_KEYS[dow.to]);
       return tpl(i18nService.t('scheduledTasksCronAtTime'), {
         schedule: `${fromName}-${toName}`,
+        time,
+      });
+    }
+    // List of specific weekdays (e.g. 1,3,5)
+    if (dow.type === 'list' && dow.values.every((v) => v >= 0 && v <= 6)) {
+      const dayNames = dow.values.map((v) => i18nService.t(WEEKDAY_KEYS[v]));
+      return tpl(i18nService.t('scheduledTasksCronAtTime'), {
+        schedule: `${i18nService.t('scheduledTasksCronEveryWeek')}${dayNames.join('/')}`,
         time,
       });
     }
@@ -164,6 +182,9 @@ export function formatScheduleLabel(schedule: Schedule): string {
 
   if (schedule.kind === 'every') {
     const everyMs = schedule.everyMs;
+    if (!Number.isFinite(everyMs) || everyMs <= 0) {
+      return `${i18nService.t('scheduledTasksScheduleEvery')} -`;
+    }
     if (everyMs % 86_400_000 === 0) {
       return `${i18nService.t('scheduledTasksScheduleEvery')} ${everyMs / 86_400_000} ${i18nService.t('scheduledTasksFormIntervalDays')}`;
     }
@@ -189,7 +210,7 @@ export function formatDateTime(date: Date): string {
 }
 
 export function formatDuration(ms: number | null): string {
-  if (ms === null) return '-';
+  if (ms === null || !Number.isFinite(ms)) return '-';
   if (ms < 1000) return `${ms}ms`;
   if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
   return `${Math.round(ms / 60_000)}m`;
