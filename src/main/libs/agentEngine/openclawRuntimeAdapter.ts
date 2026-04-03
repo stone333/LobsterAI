@@ -1054,6 +1054,7 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
     this.cleanupSessionTurn(sessionId);
     this.clearPendingApprovalsBySession(sessionId);
     this.store.updateSession(sessionId, { status: 'idle' });
+    this.emit('sessionStopped', sessionId);
     this.resolveTurn(sessionId);
   }
 
@@ -3744,12 +3745,21 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
 
   private ensureActiveTurn(sessionId: string, sessionKey: string, runId: string): void {
     if (this.activeTurns.has(sessionId)) return;
-    // Suppress automatic turn re-creation for sessions that were recently
-    // stopped by the user.  This prevents late-arriving OpenClaw events
+    // Suppress automatic turn re-creation for sessions that are still within
+    // the stop cooldown window.  This prevents late-arriving OpenClaw events
     // (e.g. from POPO/Telegram) from restarting a stopped session.
-    if (this.isSessionInStopCooldown(sessionId) || this.manuallyStoppedSessions.has(sessionId)) {
-      console.log('[Debug:ensureActiveTurn] suppressed — session was manually stopped, sessionId:', sessionId);
+    if (this.isSessionInStopCooldown(sessionId)) {
+      console.log('[Debug:ensureActiveTurn] suppressed — session in stop cooldown, sessionId:', sessionId);
       return;
+    }
+    // Once the cooldown has expired, clear the manual-stop marker so that
+    // genuinely new channel messages can create a fresh turn.  Without this,
+    // `manuallyStoppedSessions` (a permanent Set) would block all future
+    // channel events for this session until `runTurn` or `onSessionDeleted`
+    // happens to clear it.
+    if (this.manuallyStoppedSessions.has(sessionId)) {
+      console.log('[Debug:ensureActiveTurn] cooldown expired, clearing manuallyStoppedSessions for channel re-activation, sessionId:', sessionId);
+      this.manuallyStoppedSessions.delete(sessionId);
     }
     const turnRunId = runId || randomUUID();
     const turnToken = this.nextTurnToken(sessionId);
